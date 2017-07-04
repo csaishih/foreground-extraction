@@ -3,69 +3,84 @@ import cv2 as cv
 import argparse, os, sys
 from util import *
 
+class GraphCut:
+    def __init__(self, source, foregroundSeed, backgroundSeed):
+        self.source = source.copy()
+        self.foregroundSeed = foregroundSeed
+        self.backgroundSeed = backgroundSeed
+        self.minImageSize = 150000
+        self.imageSize = self.source.shape[0] * self.source.shape[1]
+
+        self.iDown = [self.source]
+        self.fDown = [self.foregroundSeed]
+        self.bDown = [self.backgroundSeed]
+
+        self.timesDownsampled = 0
+        self.boundary = None
+
+    def cut(self):
+        self.downSample()
+        self.boundary = self.getGuidedBoundary()
+        writeImage("boundary.png", self.boundary)
+
+    def getGuidedBoundary(self):
+        downSizedImage = self.iDown[-1]
+        downSizedForeground = self.fDown[-1]
+        downSizedBackground = self.bDown[-1]
+
+        mask = np.ones(downSizedImage.shape[:2], dtype=np.uint8) * cv.GC_PR_BGD
+        mask[downSizedForeground!=255] = cv.GC_FGD
+        mask[downSizedBackground!=255] = cv.GC_BGD
+
+        bgdModel = np.zeros((1, 65), dtype=np.float64)
+        fgdModel = np.zeros((1, 65), dtype=np.float64)
+
+        cv.grabCut(downSizedImage,mask,None,bgdModel,fgdModel,5,cv.GC_INIT_WITH_MASK)
+
+        mask = np.where((mask==2)|(mask==0),0,1).astype('uint8')
+        mask *= 255
+
+        for i in xrange(self.timesDownsampled):
+            if mask.shape[0] != self.iDown[-1 * (i + 1)].shape[0]:
+                mask = mask[:-1,:]
+            if mask.shape[1] != self.iDown[-1 * (i + 1)].shape[1]:
+                mask = mask[:,:-1]
+            mask = cv.pyrUp(mask)
+
+        guidedBoundary = np.ones_like(mask, dtype=np.uint8) * 255
+        boundary = cv.findContours(mask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
+        points = boundary[0][0]
+        for p in points:
+            guidedBoundary[p[0][1], p[0][0]] = 0
+
+        return guidedBoundary
+
+
+    def downSample(self): # Builds image pyramids
+        while self.imageSize > self.minImageSize:
+            image = cv.pyrDown(self.iDown[-1])
+            self.iDown.append(image)
+
+            foreground = cv.pyrDown(self.fDown[-1])
+            self.fDown.append(foreground)
+
+            background = cv.pyrDown(self.bDown[-1])
+            self.bDown.append(background)
+
+            self.imageSize = image.shape[0] * image.shape[1]
+            self.timesDownsampled += 1
+
 def main(args):
     source = readSource(args.s)
-    f = readMask(args.f)
-    b = readMask(args.b)
+    foregroundSeed = readMask(args.f)
+    backgroundSeed = readMask(args.b)
 
-    lowerLimit = 150000
+    assert source is not None
+    assert foregroundSeed is not None
+    assert backgroundSeed is not None
 
-    image = source.copy()
-    iDown = [image]
-    fDown = [f]
-    bDown = [b]
-
-    levels = 0
-    imgSize = image.shape[0] * image.shape[1]
-
-    while imgSize > lowerLimit:
-        image = cv.pyrDown(iDown[-1])
-        iDown.append(image)
-        f = cv.pyrDown(fDown[-1])
-        fDown.append(f)
-        b = cv.pyrDown(bDown[-1])
-        bDown.append(b)
-        imgSize = image.shape[0] * image.shape[1]
-        levels += 1
-
-    dImage = iDown[-1]
-    dF = fDown[-1]
-    dB = bDown[-1]
-
-
-    mask = np.ones(dImage.shape[:2], dtype=np.uint8) * cv.GC_PR_BGD
-    bgdModel = np.zeros((1, 65), dtype=np.float64)
-    fgdModel = np.zeros((1, 65), dtype=np.float64)
-
-    mask[dF!=255] = cv.GC_FGD
-    mask[dB!=255] = cv.GC_BGD
-
-    cv.grabCut(dImage,mask,None,bgdModel,fgdModel,5,cv.GC_INIT_WITH_MASK)
-
-    mask = np.where((mask==2)|(mask==0),0,1).astype('uint8')
-    img = dImage*mask[:,:,np.newaxis]
-
-    # writeImage(args.o, img)
-
-    mask *= 255
-    iUp = [mask]
-    for i in xrange(levels):
-        if iUp[-1].shape[0] != iDown[-1 * (i + 1)].shape[0]:
-            iUp[-1] = iUp[-1][:-1,:]
-        if iUp[-1].shape[1] != iDown[-1 * (i + 1)].shape[1]:
-            iUp[-1] = iUp[-1][:,:-1]
-        mask = cv.pyrUp(iUp[-1])
-        iUp.append(mask)
-
-
-    guidedBoundary = np.ones_like(mask, dtype=np.uint8) * 255
-    boundary = cv.findContours(mask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
-    points = boundary[0][0]
-    for p in points:
-        guidedBoundary[p[0][1], p[0][0]] = 0
-
-    mOut = source.copy()
-    writeImage(args.o, guidedBoundary)
+    graphCut = GraphCut(source, foregroundSeed, backgroundSeed)
+    graphCut.cut()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
