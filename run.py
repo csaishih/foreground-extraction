@@ -4,7 +4,7 @@ import argparse, os, sys
 from util import *
 
 class GraphCut:
-    def __init__(self, source, foregroundSeed, backgroundSeed):
+    def __init__(self, source, foregroundSeed, backgroundSeed, numThreads):
         self.source = source.copy()
         self.foregroundSeed = foregroundSeed
         self.backgroundSeed = backgroundSeed
@@ -16,28 +16,39 @@ class GraphCut:
         self.bDown = [self.backgroundSeed]
 
         self.timesDownsampled = 0
+        self.numThreads = numThreads
+
         self.boundary = None
+        self.eroded = None
+        self.dilated = None
 
-    def cut(self):
+
+    def run(self):
         self.downSample()
-        self.boundary = self.getGuidedBoundary()
-        writeImage("boundary.png", self.boundary)
+        self.boundary, self.eroded, self.dilated = self.getBoundaries()
+        self.generateBoundaryImages(self.boundary, self.eroded, self.dilated, verbose=1)
+        # self.result = self.cut(self.source, self.foregroundSeed, self.backgroundSeed)[0]
+        # writeImage("result.png", self.result)
 
-    def getGuidedBoundary(self):
-        downSizedImage = self.iDown[-1]
-        downSizedForeground = self.fDown[-1]
-        downSizedBackground = self.bDown[-1]
-
-        mask = np.ones(downSizedImage.shape[:2], dtype=np.uint8) * cv.GC_PR_BGD
-        mask[downSizedForeground!=255] = cv.GC_FGD
-        mask[downSizedBackground!=255] = cv.GC_BGD
+    def cut(self, image, foreground, background):
+        mask = np.ones(image.shape[:2], dtype=np.uint8) * cv.GC_PR_BGD
+        mask[foreground!=255] = cv.GC_FGD
+        mask[background!=255] = cv.GC_BGD
 
         bgdModel = np.zeros((1, 65), dtype=np.float64)
         fgdModel = np.zeros((1, 65), dtype=np.float64)
 
-        cv.grabCut(downSizedImage,mask,None,bgdModel,fgdModel,5,cv.GC_INIT_WITH_MASK)
-
+        cv.grabCut(image,mask,None,bgdModel,fgdModel,5,cv.GC_INIT_WITH_MASK)
         mask = np.where((mask==2)|(mask==0),0,1).astype('uint8')
+
+        return image * mask[:,:,np.newaxis], mask
+
+    def getBoundaries(self):
+        downSizedImage = self.iDown[-1]
+        downSizedForeground = self.fDown[-1]
+        downSizedBackground = self.bDown[-1]
+
+        mask = self.cut(downSizedImage, downSizedForeground, downSizedBackground)[1]
         mask *= 255
 
         for i in xrange(self.timesDownsampled):
@@ -47,14 +58,69 @@ class GraphCut:
                 mask = mask[:,:-1]
             mask = cv.pyrUp(mask)
 
-        guidedBoundary = np.ones_like(mask, dtype=np.uint8) * 255
+        # Deal with multiple segmented objects
+        kernel = np.ones((5,5), np.uint8)
+        erodedMask = cv.erode(mask, kernel, iterations=15)
+        dilatedMask = cv.dilate(mask, kernel, iterations=5)
+
         boundary = cv.findContours(mask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
+        erodedBoundary = cv.findContours(erodedMask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
+        dilatedBoundary = cv.findContours(dilatedMask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
+
         points = boundary[0][0]
+        erodedPoints = erodedBoundary[0][0]
+        dilatedPoints = dilatedBoundary[0][0]
+
+        return points, erodedPoints, dilatedPoints
+
+
+    def splitJobs(self):
+        # offset = points.shape[0] // (self.numThreads * 4)
+        # jobs = []
+        #
+        # for i in range(offset // 2, points.shape[0], offset):
+        #     jobs.append((points[i][0][1], points[i][0][0]))
+        #
+        # for i in jobs:
+        #     combined[i[0], i[1], 0] = 0
+        #     combined[i[0], i[1], 2] = 0
+        pass
+
+    def generateBoundaryImages(self, points, erodedPoints, dilatedPoints, verbose):
+        if verbose:
+            combined = np.ones(self.source.shape, dtype=np.uint8) * 255
+
+        boundary = np.ones(self.source.shape[:2], dtype=np.uint8) * 255
+        foreground = np.ones(self.source.shape[:2], dtype=np.uint8) * 255
+        background = np.ones(self.source.shape[:2], dtype=np.uint8) * 255
+
         for p in points:
-            guidedBoundary[p[0][1], p[0][0]] = 0
+            # Red
+            if verbose:
+                combined[p[0][1], p[0][0], 0] = 0
+                combined[p[0][1], p[0][0], 1] = 0
+            boundary[p[0][1], p[0][0]] = 0
 
-        return guidedBoundary
+        for p in erodedPoints:
+            # Green
+            if verbose:
+                combined[p[0][1], p[0][0], 0] = 0
+                combined[p[0][1], p[0][0], 2] = 0
+            foreground[p[0][1], p[0][0]] = 0
 
+        for p in dilatedPoints:
+            # Blue
+            if verbose:
+                combined[p[0][1], p[0][0], 1] = 0
+                combined[p[0][1], p[0][0], 2] = 0
+            background[p[0][1], p[0][0]] = 0
+
+        writeImage("_boundary.png", boundary)
+        writeImage("_foreground.png", foreground)
+        writeImage("_background.png", background)
+
+        if verbose:
+            writeImage("_combined.png", combined)
 
     def downSample(self): # Builds image pyramids
         while self.imageSize > self.minImageSize:
@@ -79,8 +145,8 @@ def main(args):
     assert foregroundSeed is not None
     assert backgroundSeed is not None
 
-    graphCut = GraphCut(source, foregroundSeed, backgroundSeed)
-    graphCut.cut()
+    graphCut = GraphCut(source, foregroundSeed, backgroundSeed, 8)
+    graphCut.run()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
