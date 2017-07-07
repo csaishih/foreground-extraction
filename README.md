@@ -5,7 +5,7 @@ This repo proposes an object segmentation algorithm that reduces the time needed
 
 
 ## How it works
-The algorithm takes in three images as input, the source image, the foreground seed image and the background seed image. The seed images give the algorithm a very basic guideline when decided whether a pixel is part of the foreground or background.  
+The algorithm takes in three images as input, the source image, the foreground seed image and the background seed image. The seed images give the algorithm a very basic guideline when deciding whether a pixel is a part of the foreground or background.  
 
 To handle the resolution of the image in a reasonable time, we construct an image pyramid by downsampling the source image to create a low resolution version of the image. We use the traditional [grabcut](https://cvg.ethz.ch/teaching/cvl/2012/grabcut-siggraph04.pdf) algorithm to get a rough foreground mask of the source image and upsample the mask back to the source image's original resolution. This mask is labelled the initial mask. More information regarding grabcut [here](http://docs.opencv.org/3.1.0/d8/d83/tutorial_py_grabcut.html).  
 
