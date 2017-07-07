@@ -46,5 +46,5 @@ Once each patch is refined, its intensity values are copied back onto an eroded 
 ###### Test 2 refined mask
 ![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/out_refinedMask.png "Test 2 result")
 
-###### Test 2 contours (Red = Mask contour, Blue = Background pixels, Green = Foreground pixels)
+###### Test 2 contours (Red = Initial mask contour, Blue = Background pixels, Green = Foreground pixels)
 ![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/out_contour.png "Test 2 contours")
