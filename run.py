@@ -6,7 +6,7 @@ import argparse, os, sys
 from threading import Thread
 from util import *
 
-class GraphCut:
+class ObjectSegmentation:
     def __init__(self, source, foregroundSeed, backgroundSeed):
         # Keep a copy of source
         self.source = source.copy()
@@ -40,9 +40,9 @@ class GraphCut:
         self.results = [None, None, None, None]
 
         # Images stored for debugging purposes
-        self._combined = None
+        self._contour = None
         self._initialMask = None
-        self._finalMask = np.zeros(self.source.shape[:2], dtype=np.uint8)
+        self._refinedMask = np.zeros(self.source.shape[:2], dtype=np.uint8)
 
         self.numRows = source.shape[0]
         self.numCols = source.shape[1]
@@ -63,7 +63,7 @@ class GraphCut:
         # esimate of the cutout mask. Using this estimate, we can obtain a more
         # refined foreground and background seed.
         self.downSample()
-        self.cuts, self.foreground, self.background, self._combined = self.getBoundaries()
+        self.cuts, self.foreground, self.background, self._contour = self.getBoundaries()
 
         # Using the refined foreground and background seeds, we take the estimated
         # cutout mask and refine the contour by examining patches that lie on the contour
@@ -71,8 +71,8 @@ class GraphCut:
         self.refineBoundary(self.cuts)
 
         # Cut out the original image using the refined mask
-        self.cutOut[self._finalMask==0] = 0
-        return self.cutOut, self._finalMask, self._combined, self._initialMask
+        self.cutOut[self._refinedMask==0] = 0
+        return self.cutOut, self._refinedMask, self._contour, self._initialMask
 
     # Constructs an image pyramid by scaling down the image and foreground and background seeds
     def downSample(self):
@@ -120,7 +120,7 @@ class GraphCut:
         dilatedBoundary = cv.findContours(dilatedMask, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
 
         # Create image representations of the new foreground and background seeds
-        combined = np.ones(self.source.shape, dtype=np.uint8) * 255
+        contour = np.ones(self.source.shape, dtype=np.uint8) * 255
         foreground = np.zeros(self.source.shape[:2], dtype=np.uint8)
         background = np.zeros(self.source.shape[:2], dtype=np.uint8)
 
@@ -133,21 +133,21 @@ class GraphCut:
 
             # Red
             for p in points:
-                combined[p[0][1], p[0][0]] = [0, 0, 255]
+                contour[p[0][1], p[0][0]] = [0, 0, 255]
 
             # Green
             for p in erodedPoints:
                 foreground[p[0][1], p[0][0]] = 255
-                combined[p[0][1], p[0][0]] = [0, 255, 0]
+                contour[p[0][1], p[0][0]] = [0, 255, 0]
 
             # Blue
             for p in dilatedPoints:
                 background[p[0][1], p[0][0]] = 255
-                combined[p[0][1], p[0][0]] = [255, 0, 0]
+                contour[p[0][1], p[0][0]] = [255, 0, 0]
 
             cuts.append((points, erodedPoints, dilatedPoints))
 
-        return cuts, foreground, background, combined
+        return cuts, foreground, background, contour
 
     # Refines the contour by examining patches on the contour
     def refineBoundary(self, cuts):
@@ -208,7 +208,7 @@ class GraphCut:
             boundary = cv.findContours(contours, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
             for i in range(len(boundary[0])):
                 if cv.contourArea(boundary[0][i]) > self.contourSizeThreshold:
-                    cv.drawContours(self._finalMask, boundary[0], i, 255, thickness=-1)
+                    cv.drawContours(self._refinedMask, boundary[0], i, 255, thickness=-1)
 
     # Function called by each thread to process the patches
     def threadCut(self, tID, patches):
@@ -310,24 +310,24 @@ def main(args):
     assert backgroundSeed is not None
 
     # Run algorithm
-    graphCut = GraphCut(source, foregroundSeed, backgroundSeed)
-    result, _finalMask, _combined, _initialMask = graphCut.run()
+    segmentation = ObjectSegmentation(source, foregroundSeed, backgroundSeed)
+    result, _refinedMask, _contour, _initialMask = segmentation.run()
 
     # Figure out the paths for the debugging images
     splitString = args.o.split('.')
-    _finalMaskPath = str(splitString[0]) + '_finalMask.'
-    _combinedPath = str(splitString[0]) + '_combined.'
+    _refinedMaskPath = str(splitString[0]) + '_refinedMask.'
+    _contourPath = str(splitString[0]) + '_contour.'
     _initialMaskPath = str(splitString[0]) + '_initialMask.'
 
     for i in range(1, len(splitString)):
-        _finalMaskPath += str(splitString[i])
-        _combinedPath += str(splitString[i])
+        _refinedMaskPath += str(splitString[i])
+        _contourPath += str(splitString[i])
         _initialMaskPath += str(splitString[i])
 
     # Write the images
     writeImage(args.o, result)
-    writeImage(_finalMaskPath, _finalMask)
-    writeImage(_combinedPath, _combined)
+    writeImage(_refinedMaskPath, _refinedMask)
+    writeImage(_contourPath, _contour)
     writeImage(_initialMaskPath, _initialMask)
 
 if __name__ == '__main__':
