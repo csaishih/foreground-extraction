@@ -1,9 +1,13 @@
 # Object Segmentation For Large Images
 Object segmentation has a wide number of uses in Computer Vision.
+
 As technology advances, the resolution of your everyday photo also increases.
+
 This is problematic for older traditional object segmentation methods as the computation time increases tremendously when working with high resolution images.
+
 This repo proposes an object segmentation algorithm that reduces the time needed to process high resolution images while still achieving a decent result.
-Some ideas from algorithm were taken from [here](../master/paper.pdf)
+
+Inspiration of algorithm came from [here](../master/paper.pdf)
 
 
 ## How it works
@@ -20,8 +24,8 @@ How it works
 `python run.py -s test_images/test2/source.jpg -f test_images/test2/foreground.png -b test_images/test2/background.png -o test_images/test2/out.png`
 
 ## Results
-###### Test 2 source
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/source.png "Test 2 source")
+###### Test 2 source (3024 × 4032) Taken with iPhone 7Plus
+![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/source.jpg "Test 2 source")
 
 ###### Test 2 foreground seed
 ![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/foreground.png "Test 2 foreground seed")
