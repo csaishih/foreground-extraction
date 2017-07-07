@@ -284,7 +284,7 @@ class ObjectSegmentation:
 
         return mask
 
-    # Performs a basic Grabcut on an image given a foreground and background seed
+    # Performs Grabcut on an image given a foreground and background seed
     def cut(self, image, foreground, background):
         mask = np.ones(image.shape[:2], dtype=np.uint8) * cv.GC_PR_BGD
         mask[background!=255] = cv.GC_BGD
@@ -311,6 +311,7 @@ def main(args):
 
     # Run algorithm
     segmentation = ObjectSegmentation(source, foregroundSeed, backgroundSeed)
+    result = segmentation.run()
     result, _refinedMask, _contour, _initialMask = segmentation.run()
 
     # Figure out the paths for the debugging images
