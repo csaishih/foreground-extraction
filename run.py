@@ -7,6 +7,7 @@ from util import *
 class GraphCut:
     def __init__(self, source, foregroundSeed, backgroundSeed):
         self.source = source.copy()
+        self.cutOut = source.copy()
         self.foregroundSeed = foregroundSeed
         self.backgroundSeed = backgroundSeed
 
@@ -14,34 +15,41 @@ class GraphCut:
         self.fDown = [self.foregroundSeed]
         self.bDown = [self.backgroundSeed]
 
-        self.mask = None
+        self.kernel = np.ones((5,5), np.uint8)
+
         self.cuts = None
+        self.numCuts = None
         self.foreground = None
         self.background = None
         self.results = [None, None, None, None]
 
         self._combined = None
-        self._combinedWithImage = None
-        self._boundary = None
+        self._initialMask = None
+        self._finalMask = np.zeros(self.source.shape[:2], dtype=np.uint8)
 
-        self.imageSize = self.source.shape[0] * self.source.shape[1]
+        self.numRows = source.shape[0]
+        self.numCols = source.shape[1]
         self.minImageSize = 500000
         self.timesDownsampled = 0
-        self.erodeIterations = 1
-        self.dilateIterations = 1
-        self.hyperOffset = 5
+
+        self.erodeIterations = 8
+        self.dilateIterations = 8
+        self.patchRadius = 50
 
     def run(self):
-        # return self.cut(self.source, self.foregroundSeed, self.backgroundSeed)[0]
         self.downSample()
-        self.cuts = self.getBoundaries()
-        self.generateBoundaryImages(self.cuts)
+        self.cuts, self.foreground, self.background, self._combined = self.getBoundaries()
         self.refineBoundary(self.cuts)
-        return self.source, self._boundary, self._combined, self._combinedWithImage
+        self.cutOut[self._finalMask==0] = 0
+        return self.cutOut, self._finalMask, self._combined, self._initialMask
 
 
-    def downSample(self): # Builds image pyramids
-        while self.imageSize > self.minImageSize:
+    def downSample(self):
+        '''
+        Constructs the image pyramid
+        '''
+        imageSize = self.numRows * self.numCols
+        while imageSize > self.minImageSize:
             image = cv.pyrDown(self.iDown[-1])
             self.iDown.append(image)
 
@@ -51,7 +59,7 @@ class GraphCut:
             background = cv.pyrDown(self.bDown[-1])
             self.bDown.append(background)
 
-            self.imageSize = image.shape[0] * image.shape[1]
+            imageSize = image.shape[0] * image.shape[1]
             self.timesDownsampled += 1
 
     def getBoundaries(self):
@@ -59,8 +67,7 @@ class GraphCut:
         downSizedForeground = self.fDown[-1]
         downSizedBackground = self.bDown[-1]
 
-        mask = self.cut(downSizedImage, downSizedForeground, downSizedBackground)[1]
-        mask *= 255
+        mask = self.cut(downSizedImage, downSizedForeground, downSizedBackground)
 
         for i in xrange(self.timesDownsampled):
             if mask.shape[0] != self.iDown[-1 * (i + 1)].shape[0]:
@@ -68,85 +75,54 @@ class GraphCut:
             if mask.shape[1] != self.iDown[-1 * (i + 1)].shape[1]:
                 mask = mask[:,:-1]
             mask = cv.pyrUp(mask)
-        self.mask = mask.copy()
+        self._initialMask = mask.copy()
 
-        # TODO: Deal with multiple segmented objects
-        kernel = np.ones((5,5), np.uint8)
-        erodedMask = cv.erode(mask, kernel, iterations=self.erodeIterations)
-        dilatedMask = cv.dilate(mask, kernel, iterations=self.dilateIterations)
+        mask = cv.erode(mask, self.kernel, iterations=self.erodeIterations)
+        erodedMask = cv.erode(mask, self.kernel, iterations=self.erodeIterations)
+        dilatedMask = cv.dilate(mask, self.kernel, iterations=self.dilateIterations)
 
-        boundary = cv.findContours(mask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
-        erodedBoundary = cv.findContours(erodedMask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
-        dilatedBoundary = cv.findContours(dilatedMask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
+        boundary = cv.findContours(mask, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
+        erodedBoundary = cv.findContours(erodedMask, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
+        dilatedBoundary = cv.findContours(dilatedMask, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
 
-        points = boundary[0][0]
-        erodedPoints = erodedBoundary[0][0]
-        dilatedPoints = dilatedBoundary[0][0]
+        combined = np.ones(self.source.shape, dtype=np.uint8) * 255
+        foreground = np.zeros(self.source.shape[:2], dtype=np.uint8)
+        background = np.zeros(self.source.shape[:2], dtype=np.uint8)
 
         cuts = []
-        numCuts = min((len(boundary[0]), len(erodedBoundary[0]), len(dilatedBoundary[0])))
-        for i in range(numCuts):
-            points = boundary[0][i]
-            erodedPoints = erodedBoundary[0][i]
-            dilatedPoints = dilatedBoundary[0][i]
-            cuts.append((points, erodedPoints, dilatedPoints))
-
-        # return points, erodedPoints, dilatedPoints
-        return cuts
-
-    def generateBoundaryImages(self, cuts):
-        combined = np.ones(self.source.shape, dtype=np.uint8) * 255
-        combinedWithImage = self.source.copy()
-
-        boundary = np.ones(self.source.shape[:2], dtype=np.uint8) * 255
-        foreground = np.ones(self.source.shape[:2], dtype=np.uint8) * 255
-        background = np.ones(self.source.shape[:2], dtype=np.uint8) * 255
-
-        for cut in cuts:
-            points = cut[0]
-            erodedPoints = cut[1]
-            dilatedPoints = cut[2]
+        self.numCuts = min((len(boundary[0]), len(erodedBoundary[0]), len(dilatedBoundary[0])))
+        for i in range(1, self.numCuts + 1):
+            points = boundary[0][-i]
+            erodedPoints = erodedBoundary[0][-i]
+            dilatedPoints = dilatedBoundary[0][-i]
 
             for p in points: # Red
-                boundary[p[0][1], p[0][0]] = 0
                 combined[p[0][1], p[0][0]] = [0, 0, 255]
-                combinedWithImage[p[0][1], p[0][0]] = [0, 0, 255]
 
             for p in erodedPoints: # Green
-                foreground[p[0][1], p[0][0]] = 0
+                foreground[p[0][1], p[0][0]] = 255
                 combined[p[0][1], p[0][0]] = [0, 255, 0]
-                combinedWithImage[p[0][1], p[0][0]] = [0, 255, 0]
 
             for p in dilatedPoints: # Blue
-                background[p[0][1], p[0][0]] = 0
+                background[p[0][1], p[0][0]] = 255
                 combined[p[0][1], p[0][0]] = [255, 0, 0]
-                combinedWithImage[p[0][1], p[0][0]] = [255, 0, 0]
 
-        self.foreground = foreground
-        self.background = background
+            cuts.append((points, erodedPoints, dilatedPoints))
 
-        self._combined = combined
-        self._combinedWithImage = combinedWithImage
-        self._boundary = boundary
+        return cuts, foreground, background, combined
+
 
     def refineBoundary(self, cuts):
-        offset = self.hyperOffset
-        numRows = self.source.shape[0]
-        numCols= self.source.shape[1]
-
         jobs = []
-
         for cut in cuts:
             points = cut[0]
 
-            for i in range(offset // 2, points.shape[0], offset):
+            for i in range(self.patchRadius // 2, points.shape[0], self.patchRadius):
                 row = points[i][0][1]
                 col = points[i][0][0]
-
-                patch = self.source[max(0, row-offset):min(numRows, row+offset),max(0, col-offset):min(numCols, col+offset),:]
-                foregroundPatch = self.foreground[max(0, row-offset):min(numRows, row+offset),max(0, col-offset):min(numCols, col+offset)]
-                backgroundPatch = self.background[max(0, row-offset):min(numRows, row+offset),max(0, col-offset):min(numCols, col+offset)]
-
+                patch = self.source[max(0, row-self.patchRadius):min(self.numRows, row+self.patchRadius),max(0, col-self.patchRadius):min(self.numCols, col+self.patchRadius),:]
+                foregroundPatch = self.foreground[max(0, row-self.patchRadius):min(self.numRows, row+self.patchRadius),max(0, col-self.patchRadius):min(self.numCols, col+self.patchRadius)]
+                backgroundPatch = self.background[max(0, row-self.patchRadius):min(self.numRows, row+self.patchRadius),max(0, col-self.patchRadius):min(self.numCols, col+self.patchRadius)]
                 jobs.append((patch, foregroundPatch, backgroundPatch))
 
         numTasks = len(jobs) // 4
@@ -167,33 +143,28 @@ class GraphCut:
 
         tID = 0
         jobID = 0
-
+        ccc = []
         for cut in cuts:
             points = cut[0]
+            contours = np.zeros(self.source.shape[:2], dtype=np.uint8)
 
-            for i in range(offset // 2, points.shape[0], offset):
-                row = points[i][0][1]
-                col = points[i][0][0]
-
+            for i in range(self.patchRadius // 2, points.shape[0], self.patchRadius):
                 if tID < 3 and jobID == numTasks:
                     tID += 1
                     jobID = 0
-                # print((tID, jobID))
                 result = self.results[tID][jobID]
                 jobID += 1
 
-                g = np.uint8(result>0) * 255
-                g = cv.cvtColor(g, cv.COLOR_BGR2GRAY)
+                row = points[i][0][1]
+                col = points[i][0][0]
+                contours[max(0, row-self.patchRadius):min(self.numRows, row+self.patchRadius),max(0, col-self.patchRadius):min(self.numCols, col+self.patchRadius)] = result
+            ccc.append(contours)
+            writeImage("test.png", contours)
+            boundary = cv.findContours(contours, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
+            cv.drawContours(self._finalMask, boundary[0], -1, 255, thickness=-1)
+            # contourIndex = np.argmax([len(x) for x in boundary[0]])
+            # cv.drawContours(self._finalMask, boundary[0], contourIndex, 255, thickness=-1)
 
-                self.mask[max(0, row-offset):min(numRows, row+offset),max(0, col-offset):min(numCols, col+offset)] = g
-
-        writeImage("outman.png", self.mask)
-        # boundary = cv.findContours(self.mask, cv.RETR_LIST, cv.CHAIN_APPROX_NONE)
-        # contourIndex = np.argmax([len(x) for x in boundary[0]])
-        # points = boundary[0][contourIndex]
-        #
-        # for p in points:
-        #     self.source[p[0][1], p[0][0]] = [0, 0, 255]
 
     def threadCut(self, tID, jobs):
         self.results[tID] = []
@@ -201,9 +172,46 @@ class GraphCut:
             patch = job[0]
             foregroundPatch = job[1]
             backgroundPatch = job[2]
-            self.results[tID].append(self.cut(patch, foregroundPatch, backgroundPatch)[0])
+
+            _mask = self.test(patch, foregroundPatch, backgroundPatch)
+            self.results[tID].append(_mask)
+
+    def test(self, image, foreground, background):
+        mask = np.zeros(image.shape[:2], dtype=np.uint8)
+        f = image.copy()
+        b = image.copy()
+        u = image.copy()
+        f[foreground==0] = 0
+        b[background==0] = 0
+
+        fAverageColor = np.sum(f, axis=(0,1))
+        bAverageColor = np.sum(b, axis=(0,1))
+
+        if np.count_nonzero(np.sum(f, axis=2)) != 0:
+            fAverageColor /= np.count_nonzero(np.sum(f, axis=2))
+        if np.count_nonzero(np.sum(b, axis=2)) != 0:
+            bAverageColor /= np.count_nonzero(np.sum(b, axis=2))
+
+        tt = np.zeros(image.shape, dtype=np.uint8)
+        tt[:,:] = fAverageColor
+        yy = np.zeros(image.shape, dtype=np.uint8)
+        yy[:,:] = bAverageColor
+
+        ff = np.sum(np.abs((u - fAverageColor).astype(np.int64)),axis=2)
+        bb = np.sum(np.abs((u - bAverageColor).astype(np.int64)),axis=2)
+
+        dd = ff - bb
+
+        closerToForeground = np.array(dd < -10)
+        mask[closerToForeground==1] = 255
+
+        return mask
+
 
     def cut(self, image, foreground, background):
+        '''
+        Performs a graph cut given the image, foreground mask and background mask
+        '''
         mask = np.ones(image.shape[:2], dtype=np.uint8) * cv.GC_PR_BGD
         mask[background!=255] = cv.GC_BGD
         mask[foreground!=255] = cv.GC_FGD
@@ -213,8 +221,8 @@ class GraphCut:
 
         cv.grabCut(image,mask,None,bgdModel,fgdModel,5,cv.GC_INIT_WITH_MASK)
         mask = np.where((mask==2)|(mask==0),0,1).astype('uint8')
-
-        return image * mask[:,:,np.newaxis], mask
+        mask *= 255
+        return mask
 
 
 def main(args):
@@ -226,27 +234,23 @@ def main(args):
     assert foregroundSeed is not None
     assert backgroundSeed is not None
 
-    verbose = 1
-
     graphCut = GraphCut(source, foregroundSeed, backgroundSeed)
-    result, _boundary, _combined, _combinedWithImage = graphCut.run()
+    result, _finalMask, _combined, _initialMask = graphCut.run()
+
+    splitString = args.o.split('.')
+    _finalMaskPath = str(splitString[0]) + '_finalMask.'
+    _combinedPath = str(splitString[0]) + '_combined.'
+    _initialMaskPath = str(splitString[0]) + '_initialMask.'
+
+    for i in range(1, len(splitString)):
+        _finalMaskPath += str(splitString[i])
+        _combinedPath += str(splitString[i])
+        _initialMaskPath += str(splitString[i])
 
     writeImage(args.o, result)
-
-    if verbose:
-        splitString = args.o.split('.')
-        _boundaryPath = str(splitString[0]) + '_boundary.'
-        _combinedPath = str(splitString[0]) + '_combined.'
-        _combinedWithImagePath = str(splitString[0]) + '_combinedWithImage.'
-
-        for i in range(1, len(splitString)):
-            _boundaryPath += str(splitString[i])
-            _combinedPath += str(splitString[i])
-            _combinedWithImagePath += str(splitString[i])
-
-        writeImage(_boundaryPath, _boundary)
-        writeImage(_combinedPath, _combined)
-        writeImage(_combinedWithImagePath, _combinedWithImage)
+    writeImage(_finalMaskPath, _finalMask)
+    writeImage(_combinedPath, _combined)
+    writeImage(_initialMaskPath, _initialMask)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
