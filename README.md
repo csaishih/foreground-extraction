@@ -1,7 +1,7 @@
 # Object Segmentation For Large Images
 Object segmentation has a wide number of uses in computer vision. As technology advances, the resolution of your everyday photo also increases. This is problematic for older traditional object segmentation methods as the computation time increases tremendously when working with high resolution images.  
 
-This repo proposes an object segmentation algorithm that reduces the time needed to process high resolution images while still achieving a decent result. Inspiration of algorithm came from [here](../master/paper.pdf).
+This repo proposes an object segmentation algorithm that reduces the time needed to process high resolution images while still achieving a decent result. Inspiration of algorithm came from [here](http://graphicsinterface.org/wp-content/uploads/gi2015-11.pdf).
 
 
 ## How it works
