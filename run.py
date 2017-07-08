@@ -311,7 +311,6 @@ def main(args):
 
     # Run algorithm
     segmentation = ObjectSegmentation(source, foregroundSeed, backgroundSeed)
-    result = segmentation.run()
     result, _refinedMask, _contour, _initialMask = segmentation.run()
 
     # Figure out the paths for the debugging images
