@@ -1,7 +1,7 @@
-# Object Segmentation For Large Images
-Object segmentation has a wide number of uses in computer vision. As technology advances, the resolution of your everyday photo also increases. This is problematic for older traditional object segmentation methods as the computation time increases tremendously when working with high resolution images.  
+# Foreground Extraction For Large Images
+Foreground extraction has a wide number of applications in computer vision. As technology advances, the resolution of your everyday photo also increases. This is problematic for older traditional foreground extraction methods as the computation time increases tremendously when working with high resolution images.  
 
-This repo proposes an object segmentation algorithm that reduces the time needed to process high resolution images while still achieving a decent result. Inspiration of algorithm came from [here](http://graphicsinterface.org/wp-content/uploads/gi2015-11.pdf).
+This repo proposes a foreground extraction algorithm that reduces the time needed to process high resolution images while still achieving a decent result. Inspiration of algorithm came from [here](http://graphicsinterface.org/wp-content/uploads/gi2015-11.pdf).
 
 
 ## How it works
@@ -26,25 +26,25 @@ Once each patch is refined, its intensity values are copied back onto an eroded 
 ## Results
 #### Tests done on 2.7 GHz Quad Core i7 MacBook
 ###### Test 2 source (3024 × 4032) Taken with iPhone 7
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/source.jpg "Test 2 source")
+![alt text](https://github.com/g3aishih/foreground-extraction/blob/master/test_images/test2/source.jpg "Test 2 source")
 
 ###### Test 2 unoptimized result (run time: 74.0391 seconds)
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/out.png "Test 2 unoptimized result")
+![alt text](https://github.com/g3aishih/foreground-extraction/blob/master/test_images/test2/out.png "Test 2 unoptimized result")
 
 ###### Test 2 optimized result (run time: 3.6541 seconds)
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/out.png "Test 2 optimized result")
+![alt text](https://github.com/g3aishih/foreground-extraction/blob/master/test_images/test2/out.png "Test 2 optimized result")
 
 ###### Test 2 foreground seed
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/foreground.png "Test 2 foreground seed")
+![alt text](https://github.com/g3aishih/foreground-extraction/blob/master/test_images/test2/foreground.png "Test 2 foreground seed")
 
 ###### Test 2 background seed
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/background.png "Test 2 background seed")
+![alt text](https://github.com/g3aishih/foreground-extraction/blob/master/test_images/test2/background.png "Test 2 background seed")
 
 ###### Test 2 initial mask
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/out_initialMask.png "Test 2 result")
+![alt text](https://github.com/g3aishih/foreground-extraction/blob/master/test_images/test2/out_initialMask.png "Test 2 result")
 
 ###### Test 2 refined mask
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/out_refinedMask.png "Test 2 result")
+![alt text](https://github.com/g3aishih/foreground-extraction/blob/master/test_images/test2/out_refinedMask.png "Test 2 result")
 
 ###### Test 2 contours (Red = Initial mask contour, Blue = Background pixels, Green = Foreground pixels)
-![alt text](https://github.com/g3aishih/object-segmentation/blob/master/test_images/test2/out_contour.png "Test 2 contours")
+![alt text](https://github.com/g3aishih/foreground-extraction/blob/master/test_images/test2/out_contour.png "Test 2 contours")

@@ -6,7 +6,7 @@ import argparse, os, sys
 from threading import Thread
 from util import *
 
-class ObjectSegmentation:
+class ForegroundExtraction:
     def __init__(self, source, foregroundSeed, backgroundSeed):
         # Keep a copy of source
         self.source = source.copy()
@@ -310,8 +310,8 @@ def main(args):
     assert backgroundSeed is not None
 
     # Run algorithm
-    segmentation = ObjectSegmentation(source, foregroundSeed, backgroundSeed)
-    result, _refinedMask, _contour, _initialMask = segmentation.run()
+    extraction = ForegroundExtraction(source, foregroundSeed, backgroundSeed)
+    result, _refinedMask, _contour, _initialMask = extraction.run()
 
     # Figure out the paths for the debugging images
     splitString = args.o.split('.')
