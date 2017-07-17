@@ -7,7 +7,7 @@ from threading import Thread
 from util import *
 
 class ForegroundExtraction:
-    def __init__(self, source, foregroundSeed, backgroundSeed):
+    def __init__(self, source, foregroundSeed, backgroundSeed, threshold):
         # Keep a copy of source
         self.source = source.copy()
 
@@ -56,7 +56,7 @@ class ForegroundExtraction:
         self.patchRadius = 10
         self.colorWeight = 0.5
         self.locationWeight = 0.5
-        self.contourSizeThreshold = 5000
+        self.contourSizeThreshold = threshold
 
     def run(self):
         # We down sample the large image to a much more managable size
@@ -314,13 +314,14 @@ def main(args):
     source = readSource(args.s)
     foregroundSeed = readMask(args.f)
     backgroundSeed = readMask(args.b)
+    threshold = int(args.t)
 
     assert source is not None
     assert foregroundSeed is not None
     assert backgroundSeed is not None
 
     # Run algorithm
-    extraction = ForegroundExtraction(source, foregroundSeed, backgroundSeed)
+    extraction = ForegroundExtraction(source, foregroundSeed, backgroundSeed, threshold)
     result, _refinedMask, _contour, _contourSource, _initialMask = extraction.run()
 
     # Figure out the paths for the debugging images
@@ -356,6 +357,10 @@ if __name__ == '__main__':
     parser.add_argument('-b',
                         type=str,
                         help='Path to background mask image',
+                        required=True)
+    parser.add_argument('-t',
+                        type=str,
+                        help='Threshold for contour size',
                         required=True)
     parser.add_argument('-o',
                         type=str,

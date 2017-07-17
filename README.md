@@ -19,9 +19,9 @@ Once each patch is refined, its intensity values are copied back onto an eroded 
   * [OpenCV](http://docs.opencv.org/3.0-beta/doc/py_tutorials/py_tutorials.html)
 
 ###### Basic usage
-`python run.py -s [path to source image] -f [path to foreground seed image] -b [path to background seed image] -o [path to output image]`
+`python run.py -s [path to source image] -f [path to foreground seed image] -b [path to background seed image] -t [threshold value for smallest contour size] -o [path to output image]`
 ###### Example usage
-`python run.py -s test_images/test2/source.jpg -f test_images/test2/foreground.png -b test_images/test2/background.png -o test_images/test2/out.png`
+`python run.py -s test_images/test2/source.jpg -f test_images/test2/foreground.png -b test_images/test2/background.png -t 5000 -o test_images/test2/out.png`
 
 ## Results
 #### Tests done on 2.7 GHz Quad Core i7 MacBook
