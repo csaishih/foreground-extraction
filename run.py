@@ -56,7 +56,7 @@ class ForegroundExtraction:
         self.patchRadius = 10
         self.colorWeight = 0.5
         self.locationWeight = 0.5
-        self.contourSizeThreshold = int(source.shape[0] * source.shape[1] * 0.05)
+        self.contourSizeThreshold = 5000
 
     def run(self):
         # We down sample the large image to a much more managable size
@@ -128,11 +128,12 @@ class ForegroundExtraction:
 
         cuts = []
         self.numCuts = min((len(boundary[0]), len(erodedBoundary[0]), len(dilatedBoundary[0])))
-
         # Only deal with the largest contours to avoid artifacts
         biggestContours = np.array([cv.contourArea(x) for x in boundary[0]]).argsort()[-self.numCuts:]
         biggestErodedContours = np.array([cv.contourArea(x) for x in erodedBoundary[0]]).argsort()[-self.numCuts:]
         biggestDilatedContours = np.array([cv.contourArea(x) for x in dilatedBoundary[0]]).argsort()[-self.numCuts:]
+
+        print(biggestContours)
 
         for i in range(0, self.numCuts):
             points = boundary[0][biggestContours[i]]
