@@ -133,8 +133,6 @@ class ForegroundExtraction:
         biggestErodedContours = np.array([cv.contourArea(x) for x in erodedBoundary[0]]).argsort()[-self.numCuts:]
         biggestDilatedContours = np.array([cv.contourArea(x) for x in dilatedBoundary[0]]).argsort()[-self.numCuts:]
 
-        print(biggestContours)
-
         for i in range(0, self.numCuts):
             points = boundary[0][biggestContours[i]]
             erodedPoints = erodedBoundary[0][biggestErodedContours[i]]
